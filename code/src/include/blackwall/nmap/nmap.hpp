@@ -72,6 +72,7 @@ namespace bw::nmap {
     };
 
     enum PERFORMANCE{
+        DEFAULT_PERF,
         SPEED_0,
         SPEED_1,
         SPEED_2,
@@ -89,6 +90,8 @@ namespace bw::nmap {
     };
 
     enum OUTPUT{
+        CONSOLE,
+        XML,
         NORMAL,
         VERBOSE,
         VERY_VERBOSE
@@ -205,6 +208,7 @@ namespace bw::nmap {
                     case OUTPUT::NORMAL: return "oN";
                     case OUTPUT::VERBOSE: return "v";
                     case OUTPUT::VERY_VERBOSE: return "vv";
+                    case OUTPUT::XML: return "x";
                 }
 
                 return "";
@@ -219,8 +223,8 @@ namespace bw::nmap {
             std::vector<SCRIPT_SCAN>       scriptsSpecs;
             std::vector<FIREWALL_SPOOFING> firewallSpoofing;
 
-            OS_DETECTION osDetection;
-            PERFORMANCE  performance;
+            OS_DETECTION osDetection = DISABLED;
+            PERFORMANCE  performance = DEFAULT_PERF;
             OUTPUT       output;
 
         public:
@@ -234,7 +238,7 @@ namespace bw::nmap {
             void option(PERFORMANCE val){ performance = val;}
             void option(OUTPUT val){ output = val;}
 
-            void scan(
+            std::string scan(
                 std::string address,
                 std::string output_file = "",
                 std::vector<int> specified_ports = {}
@@ -288,21 +292,23 @@ namespace bw::nmap {
                 }
 
                 std::string str_val = resolveOsDet(osDetection);
-                if (!str_val.empty()) nmap_command += " -O " + str_val;
+                if (!str_val.empty()) nmap_command += " -" + str_val;
 
                 str_val = resolvePerf(performance);
-                if (!str_val.empty()) nmap_command += " -O " + str_val;
+                if (!str_val.empty()) nmap_command += " -" + str_val;
 
-                str_val = resolveOutput(output);
-                if (!str_val.empty()) nmap_command += " -O " + str_val;
 
-                nmap_command += " -oX " + output_file;
+                if (!output_file.empty()) {
+                    str_val = resolveOutput(output);
+                    if (!str_val.empty()) nmap_command += " -" + str_val;
+                    nmap_command += " " + output_file;
+                }
                 nmap_command += " " + address;
 
                 sys::execute("mkdir -p ./tmp/nmap");
 
-                std::cout << nmap_command << std::endl;
-                sys::execute(nmap_command);
+                std::cout << "Command: " << nmap_command << std::endl;
+                return sys::execute(nmap_command);
             }
 
             Nmap(){}

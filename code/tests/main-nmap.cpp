@@ -3,10 +3,16 @@
 int main(){
     bw::nmap::Nmap scaner;
 
+    scaner.option( bw::nmap::NORMAL );
+    scaner.option( bw::nmap::SERVICE_DETECT::PROBE );
+    
     scaner.option( bw::nmap::CUSTOM_VULNERS );
+    scaner.option( bw::nmap::CUSTOM_GEOLOC  );
 
-    scaner.scan(
-        "192.168.31.100",
-        "./dev/results/local_result"
+    std::string out = scaner.scan(
+        "83.222.191.202",
+        "./dev/results/vuln_norm_result"
     );
+
+    
 }
