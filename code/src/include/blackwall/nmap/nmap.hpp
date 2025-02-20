@@ -1,11 +1,14 @@
 #pragma once
 
 #include <blackwall/system/execute.hpp>
+#include <utils/vector.hpp>
 
 namespace bw::nmap {
 
-    struct CPE{};
-    struct CVE{};
+    enum TARGET_SPEC {
+        TARGET_DEFAULT,
+        TARGET_RANDOM
+    };
 
     enum SCAN_TECHNIQUES{
         TCP_SYN,
@@ -41,6 +44,7 @@ namespace bw::nmap {
 
     enum PORT_SPEC{
         PORT_RANGE,
+        ALL_PORTS,
         FEWER,
         NO_RANDOM
     };
@@ -94,10 +98,19 @@ namespace bw::nmap {
         XML,
         NORMAL,
         VERBOSE,
-        VERY_VERBOSE
+        VERY_VERBOSE,
+        PACKET_TRACE,
+        ONLY_OPEN
     };
 
     class Nmap{
+
+            std::string resolveTargetSpec(TARGET_SPEC val){
+                switch(val){
+                    case TARGET_SPEC::TARGET_RANDOM: return "iR";
+                }
+                return "";
+            }
 
             std::string resolveScanTech(SCAN_TECHNIQUES val){
                 switch(val){
@@ -141,8 +154,8 @@ namespace bw::nmap {
             std::string resolveServiceDet(SERVICE_DETECT val){
                 switch(val){
                     case SERVICE_DETECT::PROBE: return "sV";
-                    case SERVICE_DETECT::TRY_ALL_PROBES: return "version-all";
-                    case SERVICE_DETECT::VER_TRACE: return "version-trace";
+                    case SERVICE_DETECT::TRY_ALL_PROBES: return "-version-all";
+                    case SERVICE_DETECT::VER_TRACE: return "-version-trace";
                 }
                 return "";
             }
@@ -151,6 +164,7 @@ namespace bw::nmap {
                 switch(val){
                     case PORT_SPEC::FEWER: return "F";
                     case PORT_SPEC::NO_RANDOM: return "r";
+                    case PORT_SPEC::ALL_PORTS: return "p-";
                 }
                 return "";
             }
@@ -160,7 +174,7 @@ namespace bw::nmap {
                     case SCRIPT_SCAN::NO_SCRIPT: return "";
                     case SCRIPT_SCAN::DEFAULT: return "sC";
                     case SCRIPT_SCAN::TRACE_SCRIPT: return "script-trace";
-                    case SCRIPT_SCAN::CUSTOM_VULNERS: return "vulners";
+                    case SCRIPT_SCAN::CUSTOM_VULNERS: return "vuln";
                     case SCRIPT_SCAN::CUSTOM_GEOLOC: return "ip-geolocation-geoplugin";
                     case SCRIPT_SCAN::CUSTOM_AUTH_SPOOF: return "auth-spoof";
                     case SCRIPT_SCAN::CUSTOM_TOR_CHECK: return "tor-consensus-checker";
@@ -209,6 +223,8 @@ namespace bw::nmap {
                     case OUTPUT::VERBOSE: return "v";
                     case OUTPUT::VERY_VERBOSE: return "vv";
                     case OUTPUT::XML: return "x";
+                    case OUTPUT::PACKET_TRACE: return "-packet-trace";
+                    case OUTPUT::ONLY_OPEN: return "-open";
                 }
 
                 return "";
@@ -216,80 +232,149 @@ namespace bw::nmap {
 
             std::vector<short> ports;
 
-            std::vector<SCAN_TECHNIQUES>   scanTechniques;
-            std::vector<HOST_DISCOVERY>    hostDiscovery;
-            std::vector<PORT_SPEC>         portSpecs;
-            std::vector<SERVICE_DETECT>    serviceDetection;
-            std::vector<SCRIPT_SCAN>       scriptsSpecs;
-            std::vector<FIREWALL_SPOOFING> firewallSpoofing;
+            std::vector<std::pair<SCAN_TECHNIQUES, bool>>   scanTechniques;
+            std::vector<std::pair<HOST_DISCOVERY, bool>>    hostDiscovery;
+            std::vector<std::pair<PORT_SPEC, bool>>         portSpecs;
+            std::vector<std::pair<SERVICE_DETECT, bool>>    serviceDetection;
+            std::vector<std::pair<SCRIPT_SCAN, bool>>       scriptsSpecs;
+            std::vector<std::pair<FIREWALL_SPOOFING, bool>> firewallSpoofing;
+            std::vector<std::pair<OUTPUT, bool>>            outputSpecs;
 
-            OS_DETECTION osDetection = DISABLED;
-            PERFORMANCE  performance = DEFAULT_PERF;
-            OUTPUT       output;
+            OS_DETECTION osDetection = OS_DETECTION::DISABLED;
+            TARGET_SPEC  targetSpec  =  TARGET_SPEC::TARGET_DEFAULT;
+            PERFORMANCE  performance =  PERFORMANCE::DEFAULT_PERF;
 
         public:
             
-            void option(SCAN_TECHNIQUES val){ scanTechniques.push_back(val);}
-            void option(HOST_DISCOVERY val){ hostDiscovery.push_back(val);}
-            void option(SERVICE_DETECT val){ serviceDetection.push_back(val);}
-            void option(SCRIPT_SCAN val){ scriptsSpecs.push_back(val);}
-            void option(FIREWALL_SPOOFING val){ firewallSpoofing.push_back(val);}
+            void option(SCAN_TECHNIQUES val, bool only_for_next = false){ scanTechniques.push_back({val, only_for_next});}
+            void option(HOST_DISCOVERY val, bool only_for_next = false){ hostDiscovery.push_back({val, only_for_next});}
+            void option(SERVICE_DETECT val, bool only_for_next = false){ serviceDetection.push_back({val, only_for_next});}
+            void option(SCRIPT_SCAN val, bool only_for_next = false){ scriptsSpecs.push_back({val, only_for_next});}
+            void option(FIREWALL_SPOOFING val, bool only_for_next = false){ firewallSpoofing.push_back({val, only_for_next});}
+            void option(OUTPUT val, bool only_for_next = false){ outputSpecs.push_back({val, only_for_next});}
+            void option(PORT_SPEC val, bool only_for_next = false){ portSpecs.push_back({val, only_for_next});}
+
             void option(OS_DETECTION val){ osDetection = val;}
             void option(PERFORMANCE val){ performance = val;}
-            void option(OUTPUT val){ output = val;}
+            void option(TARGET_SPEC val){ targetSpec = val;}
 
             std::string scan(
                 std::string address,
                 std::string output_file = "",
+                int num_of_random_ips = 1,
                 std::vector<int> specified_ports = {}
             ){
                 
                 std::string nmap_command = "nmap";
+                std::vector<int> to_remove;
+                std::vector<int> new_vec;
 
+                to_remove = {}; new_vec = {};
                 for (auto &val : scanTechniques){
-                    std::string str_val = resolveScanTech(val);
+                    if (val.second) to_remove.push_back((int)val.first);
+                    std::string str_val = resolveScanTech(val.first);
                     if (str_val.empty()) continue;
                     nmap_command += " -" + str_val;
                 }
+
                 
+                for (auto &val: scanTechniques){
+                    if (!utils::vec::count(to_remove, (int)val.first)) 
+                        new_vec.push_back(val.first);
+                }
+                scanTechniques = utils::vec::processVector<int, std::pair<SCAN_TECHNIQUES, bool>>(new_vec, [&](int inx, int val){
+                    return std::make_pair<SCAN_TECHNIQUES, bool>((SCAN_TECHNIQUES)val, false);
+                });
+
+                
+                to_remove = {}; new_vec = {};
                 for (auto &val: hostDiscovery){
-                    std::string str_val = resolveHostDisc(val);
+                    if (val.second) to_remove.push_back((int)val.first);
+                    std::string str_val = resolveHostDisc(val.first);
                     if (str_val.empty()) continue;
                     nmap_command += " -" + str_val;
                 }
+
+                for (auto &val: hostDiscovery){
+                    if (!utils::vec::count(to_remove, (int)val.first)) 
+                        new_vec.push_back(val.first);
+                }
+                hostDiscovery = utils::vec::processVector<int, std::pair<HOST_DISCOVERY, bool>>(new_vec, [&](int inx, int val){
+                    return std::make_pair<HOST_DISCOVERY, bool>((HOST_DISCOVERY)val, false);
+                });
                 
+                to_remove = {}; new_vec = {};
                 for (auto &val: portSpecs){
-                    std::string str_val = resolvePortSpec(val);
+                    if (val.second) to_remove.push_back((int)val.first);
+                    std::string str_val = resolvePortSpec(val.first);
                     if (str_val.empty()) continue;
                     nmap_command += " -" + str_val;
                 }
+
+                for (auto &val: portSpecs){
+                    if (!utils::vec::count(to_remove, (int)val.first)) 
+                        new_vec.push_back(val.first);
+                }
+                portSpecs = utils::vec::processVector<int, std::pair<PORT_SPEC, bool>>(new_vec, [&](int inx, int val){
+                    return std::make_pair<PORT_SPEC, bool>((PORT_SPEC)val, false);
+                });
                 
+                to_remove = {}; new_vec = {};
                 for (auto &val: serviceDetection){
-                    std::string str_val = resolveServiceDet(val);
+                    if (val.second) to_remove.push_back((int)val.first);
+                    std::string str_val = resolveServiceDet(val.first);
                     if (str_val.empty()) continue;
                     nmap_command += " -" + str_val;
                 }
+
+                for (auto &val: serviceDetection){
+                    if (!utils::vec::count(to_remove, (int)val.first)) 
+                        new_vec.push_back(val.first);
+                }
+                serviceDetection = utils::vec::processVector<int, std::pair<SERVICE_DETECT, bool>>(new_vec, [&](int inx, int val){
+                    return std::make_pair<SERVICE_DETECT, bool>((SERVICE_DETECT)val, false);
+                });
                 
+                to_remove = {}; new_vec = {};
                 for (auto &val: firewallSpoofing){
-                    std::string str_val = resolveFirewallSpoof(val);
+                    if (val.second) to_remove.push_back((int)val.first);
+                    std::string str_val = resolveFirewallSpoof(val.first);
                     if (str_val.empty()) continue;
                     nmap_command += " -" + str_val;
                 }
+
+                for (auto &val: firewallSpoofing){
+                    if (!utils::vec::count(to_remove, (int)val.first)) 
+                        new_vec.push_back(val.first);
+                }
+                firewallSpoofing = utils::vec::processVector<int, std::pair<FIREWALL_SPOOFING, bool>>(new_vec, [&](int inx, int val){
+                    return std::make_pair<FIREWALL_SPOOFING, bool>((FIREWALL_SPOOFING)val, false);
+                });
                 
+                to_remove = {}; new_vec = {};
                 for (auto &val: scriptsSpecs){
-                    if (val == SCRIPT_SCAN::DEFAULT){
-                        nmap_command += resolveScripts(val);
+                    if (val.second) to_remove.push_back((int)val.first);
+                    if (val.first == SCRIPT_SCAN::DEFAULT){
+                        nmap_command += " -" + resolveScripts(val.first);
                         continue;
                     }
 
-                    if (val == SCRIPT_SCAN::TRACE_SCRIPT){
-                        nmap_command += "--" + resolveScripts(val);
+                    if (val.first == SCRIPT_SCAN::TRACE_SCRIPT){
+                        nmap_command += "--" + resolveScripts(val.first);
                         continue;
                     }
 
-                    std::string str_val = resolveScripts(val);
+                    std::string str_val = resolveScripts(val.first);
                     nmap_command += " --script=" + str_val;
                 }
+
+                for (auto &val: scriptsSpecs){
+                    if (!utils::vec::count(to_remove, (int)val.first)) 
+                        new_vec.push_back(val.first);
+                }
+                scriptsSpecs = utils::vec::processVector<int, std::pair<SCRIPT_SCAN, bool>>(new_vec, [&](int inx, int val){
+                    return std::make_pair<SCRIPT_SCAN, bool>((SCRIPT_SCAN)val, false);
+                });
 
                 std::string str_val = resolveOsDet(osDetection);
                 if (!str_val.empty()) nmap_command += " -" + str_val;
@@ -298,17 +383,43 @@ namespace bw::nmap {
                 if (!str_val.empty()) nmap_command += " -" + str_val;
 
 
-                if (!output_file.empty()) {
-                    str_val = resolveOutput(output);
+                to_remove = {}; new_vec = {};
+                for (auto &val: outputSpecs){
+                    if (val.second) to_remove.push_back((int)val.first);
+                    str_val = resolveOutput(val.first);
                     if (!str_val.empty()) nmap_command += " -" + str_val;
-                    nmap_command += " " + output_file;
+                    if (val.first != OUTPUT::CONSOLE && val.first != OUTPUT::ONLY_OPEN && val.first != OUTPUT::PACKET_TRACE)
+                        nmap_command += " " + output_file;
                 }
-                nmap_command += " " + address;
 
-                sys::execute("mkdir -p ./tmp/nmap");
+                for (auto &val: outputSpecs){
+                    if (!utils::vec::count(to_remove, (int)val.first)) 
+                        new_vec.push_back(val.first);
+                }
+                outputSpecs = utils::vec::processVector<int, std::pair<OUTPUT, bool>>(new_vec, [&](int inx, int val){
+                    return std::make_pair<OUTPUT, bool>((OUTPUT)val, false);
+                });
 
-                std::cout << "Command: " << nmap_command << std::endl;
-                return sys::execute(nmap_command);
+                if (!specified_ports.empty())
+                    nmap_command += " -p";
+                    
+                for (auto &port: specified_ports){
+                    nmap_command += std::to_string(port) + ',';
+                }
+                
+                if (!specified_ports.empty())
+                    nmap_command.pop_back();
+
+                str_val = resolveTargetSpec(targetSpec);
+                if (!str_val.empty()) 
+                    nmap_command += " -" + str_val + " " + std::to_string(num_of_random_ips);
+                else
+                    nmap_command += " " + std::string(address.c_str());
+
+                // sys::execute("mkdir -p ./tmp/nmap");
+                int status = 0; 
+                std::cout << "Executing nmap command: " << nmap_command << std::endl;
+                return sys::execute(nmap_command, &status);
             }
 
             Nmap(){}
