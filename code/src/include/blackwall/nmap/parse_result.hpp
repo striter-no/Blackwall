@@ -211,6 +211,10 @@ namespace bw::nmap {
                     if (line.find("OS details") != std::string::npos){
                         host.os_details = line.substr(line.find("OS details: ") + 12);
                     }
+
+                    if (line.find("Device type:") != std::string::npos){
+                        host.device_type = line.substr(line.find("Device type: ") + 13);
+                    }
                 }
             }
 
