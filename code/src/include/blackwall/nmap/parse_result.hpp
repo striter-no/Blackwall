@@ -116,6 +116,8 @@ namespace bw::nmap {
                 int version_index = -1;
 
                 for (const auto& line : lines){
+                    
+                    // std::cout << "Line: " << line << std::endl;
                     if (line.find("Host is down") != std::string::npos){
                         online = false;
                         return;
@@ -144,7 +146,7 @@ namespace bw::nmap {
                             if (port.state != OPEN) continue;
                             host.opened_ports_num ++;
                         }
-                        continue;
+                        // continue;
                     }
                     if (port_section){
                         Port port;
@@ -213,6 +215,7 @@ namespace bw::nmap {
                     }
 
                     if (line.find("Device type:") != std::string::npos){
+                        // std::cout << "DEVICE TYPE: "<< line << ' ' << line.substr(line.find("Device type: ") + 13) << std::endl;
                         host.device_type = line.substr(line.find("Device type: ") + 13);
                     }
                 }

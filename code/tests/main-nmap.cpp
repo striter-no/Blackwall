@@ -22,14 +22,14 @@ int main(){
         "./dev/results/vuln_norm_result_" + ip
     );
 
-    std::cout << out << std::endl;
+    // std::cout << out << std::endl;
 
     out = scaner.scan(
         ip,
         "./dev/results/vuln_norm_result_" + ip
     );
 
-    std::cout << out << std::endl;
+    // std::cout << out << std::endl;
 
     bw::nmap::NmapParser parser;
     parser.nmap_output = out;
