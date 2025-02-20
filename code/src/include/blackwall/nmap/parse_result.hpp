@@ -47,7 +47,9 @@ namespace bw::nmap {
         std::vector<std::pair<std::string, std::string>> results;
     };
 
-    struct CPE{};
+    struct CPE{
+        std::string value;
+    };
 
     class NmapParser {
         
@@ -100,6 +102,7 @@ namespace bw::nmap {
             Nmap *nmap;
 
             Host host;
+            std::vector<CPE>  cpes;
             std::vector<Port> ports;
 
             void parse(){
@@ -218,6 +221,15 @@ namespace bw::nmap {
                         // std::cout << "DEVICE TYPE: "<< line << ' ' << line.substr(line.find("Device type: ") + 13) << std::endl;
                         host.device_type = line.substr(line.find("Device type: ") + 13);
                     }
+
+                    if (line.find("cpe") != std::string::npos){
+                        auto splitted = utils::vec::stripsplit(line);
+                        for (auto& s : splitted){
+                            if (s.find("cpe:/o:") != std::string::npos){
+                                cpes.push_back({s});
+                            }
+                        }
+                    }
                 }
             }
 
@@ -241,6 +253,12 @@ namespace bw::nmap {
                               " | state: "  + resolvePortState(port.state) + 
                               " | service: " + port.service_name +
                               " | version: " + port.service_version;
+                }
+
+                output += "\n---------------------\n";
+                output += "\n--> CPEs: ";
+                for (auto &cpe : cpes){
+                    output += "\n    | --> " + cpe.value;
                 }
 
                 return output;
